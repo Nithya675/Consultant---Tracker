@@ -145,29 +145,31 @@ jobs:
       - name: Stop backend and frontend
         shell: bash
         run: |
-          if [ -f backend/backend_pid.txt ]; then
-            PID=$(cat backend/backend_pid.txt)
+          # Stop backend
+          if [ -f backend_pid.txt ]; then
+            PID=$(cat backend_pid.txt)
             if kill "$PID" >/dev/null 2>&1; then
               echo "Stopped backend process $PID"
             else
-              echo "Backend process $PID was not running"
-            fi
-            rm backend/backend_pid.txt
+             echo "Backend process $PID was not running"
+           fi
+           rm backend_pid.txt
           else
-            echo "No backend_pid.txt file found, nothing to stop for backend."
+            echo "No backend_pid.txt file found"
           fi
 
-          if [ -f frontend/frontend_pid.txt ]; then
-            PID=$(cat frontend/frontend_pid.txt)
-            if kill "$PID" >/dev/null 2>&1; then
-              echo "Stopped frontend process $PID"
-            else
-              echo "Frontend process $PID was not running"
+         # Stop frontend
+          if [ -f frontend_pid.txt ]; then
+            PID=$(cat frontend_pid.txt)
+             if kill "$PID" >/dev/null 2>&1; then
+               echo "Stopped frontend process $PID"
+             else
+               echo "Frontend process $PID was not running"
             fi
-            rm frontend/frontend_pid.txt
-          else
-            echo "No frontend_pid.txt file found, nothing to stop for frontend."
-          fi
+            rm frontend_pid.txt
+         else
+           echo "No frontend_pid.txt file found"
+         fi
 
 
        
