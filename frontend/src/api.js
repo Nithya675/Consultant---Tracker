@@ -51,10 +51,21 @@ export const authAPI = {
 };
 
 export const jobAPI = {
-
   getAll: () => api.get('/jobs/'),
   create: (jobData) => api.post('/jobs/', jobData),
   getOne: (id) => api.get(`/jobs/${id}`),
+  update: (id, jobData) => api.put(`/jobs/${id}`, jobData),
+  classifyJD: (jdText) => api.post('/jobs/classify', { text: jdText }),
+  uploadJDFile: (jobId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/jobs/${jobId}/upload-jd-file`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  downloadJDFile: (jobId) => api.get(`/jobs/${jobId}/download-jd-file`, { responseType: 'blob' }),
 };
 
 export const submissionAPI = {

@@ -5,10 +5,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import os
 import logging
 import time
-from app.db import init_db, close_db
-from app.routers import auth, consultants, jobs, submissions, recruiters
-from app.config import settings
-from app.logging_config import setup_logging
+from app.core.db import init_db, close_db
+from app.core.logging_config import setup_logging
+from app.core.config import settings
+from app.modules import get_all_modules
 
 # IMPORTANT: Setup logging FIRST before any other logging
 setup_logging()
@@ -75,13 +75,13 @@ async def lifespan(app: FastAPI):
 # Create FastAPI application
 logger.info("Creating FastAPI application instance")
 try:
-    app = FastAPI(
+    fastapi_app = FastAPI(
         title=settings.API_TITLE,
         description=settings.API_DESCRIPTION,
         version=settings.API_VERSION,
         lifespan=lifespan
     )
-    logger.info(f"FastAPI application created: {app.title} v{app.version}")
+    logger.info(f"FastAPI application created: {fastapi_app.title} v{fastapi_app.version}")
 except Exception as e:
     logger.critical(f"CRITICAL: Failed to create FastAPI application: {str(e)}", exc_info=True)
     raise
@@ -99,7 +99,7 @@ try:
     # Add CORS middleware
     logger.debug("Adding CORS middleware to application")
     try:
-        app.add_middleware(
+        fastapi_app.add_middleware(
             CORSMiddleware,
             allow_origins=allowed_origins,
             allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
@@ -165,31 +165,57 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 # Add request logging middleware
 logger.info("Adding request logging middleware")
 try:
-    app.add_middleware(RequestLoggingMiddleware)
+    fastapi_app.add_middleware(RequestLoggingMiddleware)
     logger.info("Request logging middleware configured successfully")
 except Exception as e:
     logger.error(f"Error adding request logging middleware: {str(e)}", exc_info=True)
     raise
 
-# Include routers
-logger.info("Registering application routers")
+# Import all modules to trigger auto-registration
+# This ensures all modules are registered in the module registry
 try:
-    logger.debug("Including application routers")
-    try:
-        app.include_router(auth.router, prefix=settings.API_PREFIX, tags=["authentication"])
-        app.include_router(consultants.router, prefix=settings.API_PREFIX, tags=["consultants"])
-        app.include_router(jobs.router, prefix=settings.API_PREFIX, tags=["jobs"])
-        app.include_router(submissions.router, prefix=settings.API_PREFIX, tags=["submissions"])
-        app.include_router(recruiters.router, prefix=settings.API_PREFIX, tags=["recruiters"])
-        logger.info(f"All routers registered successfully at {settings.API_PREFIX}")
-    except Exception as e:
-        logger.error(f"Error including routers: {str(e)}", exc_info=True)
-        raise
+    logger.debug("Importing modules to trigger auto-registration")
+    import app.modules.auth
+    import app.modules.consultants
+    import app.modules.recruiters
+    import app.modules.jobs
+    import app.modules.submissions
+    logger.info("All modules imported successfully")
 except Exception as e:
-    logger.error(f"Error registering routers: {str(e)}", exc_info=True)
+    logger.error(f"Error importing modules: {str(e)}", exc_info=True)
     raise
 
-@app.get("/")
+# Register all modules dynamically
+logger.info("Registering application modules")
+try:
+    logger.debug("Getting all registered modules")
+    modules = get_all_modules()
+    logger.info(f"Found {len(modules)} module(s) to register")
+    
+    for module_class in modules:
+        try:
+            module = module_class()
+            module_name = module.get_module_name()
+            prefix = module.get_prefix()
+            tags = module.get_tags()
+            
+            logger.debug(f"Registering module: {module_name} at {settings.API_PREFIX}{prefix}")
+            fastapi_app.include_router(
+                module.get_router(),
+                prefix=settings.API_PREFIX,
+                tags=tags
+            )
+            logger.info(f"Module '{module_name}' registered successfully")
+        except Exception as e:
+            logger.error(f"Error registering module {module_class.__name__}: {str(e)}", exc_info=True)
+            raise
+    
+    logger.info(f"All {len(modules)} module(s) registered successfully at {settings.API_PREFIX}")
+except Exception as e:
+    logger.error(f"Error registering modules: {str(e)}", exc_info=True)
+    raise
+
+@fastapi_app.get("/")
 async def root():
     """Root endpoint - API information"""
     logger.debug("Root endpoint accessed")
@@ -208,7 +234,7 @@ async def root():
             detail="Error retrieving API information"
         )
 
-@app.get("/health")
+@fastapi_app.get("/health")
 async def health_check():
     """Health check endpoint"""
     logger.debug("Health check endpoint accessed")
@@ -226,3 +252,7 @@ async def health_check():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Health check failed"
         )
+
+# Export app for uvicorn
+app = fastapi_app
+
