@@ -24,11 +24,12 @@ jobs:
       - name: Ensure MongoDB is running 
         run: |
           if pgrep mongod > /dev/null; then
-             echo "mongod is already running."
-           else
-             echo "Starting mongod service..."
-             sudo systemctl start mongod
-           fi
+            echo "mongod is already running."
+          else
+            echo "Starting MongoDB manually (WSL)..."
+            nohup mongod --config /etc/mongod.conf > /tmp/mongo.log 2>&1 &
+            sleep 3
+          fi
            
       - name: Ensure Python is installed
         run: |
