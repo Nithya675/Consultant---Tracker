@@ -24,12 +24,12 @@ jobs:
       - name: Ensure MongoDB is running 
         run: |
           if pgrep mongod > /dev/null; then
-            echo "mongod is already running."
-          else
-            echo "Starting MongoDB manually (WSL)..."
-            nohup mongod --config /etc/mongod.conf > /tmp/mongo.log 2>&1 &
-            sleep 3
-          fi
+             echo "mongod is already running."
+           else
+             echo "Starting mongod service..."
+             nohup mongod --config /etc/mongod.conf > /tmp/mongo.log 2>&1 &
+             sleep 3
+           fi
            
       - name: Ensure Python is installed
         run: |
@@ -145,32 +145,29 @@ jobs:
       - name: Stop backend and frontend
         shell: bash
         run: |
-          # Stop backend
-          if [ -f backend_pid.txt ]; then
+          if [ -f backend/backend_pid.txt ]; then
             PID=$(cat backend_pid.txt)
             if kill "$PID" >/dev/null 2>&1; then
               echo "Stopped backend process $PID"
             else
-             echo "Backend process $PID was not running"
-           fi
-           rm backend_pid.txt
+              echo "Backend process $PID was not running"
+            fi
+            rm backend_pid.txt
           else
-            echo "No backend_pid.txt file found"
+            echo "No backend_pid.txt file found."
           fi
 
-         # Stop frontend
-          if [ -f frontend_pid.txt ]; then
+          if [ -f frontend/frontend_pid.txt ]; then
             PID=$(cat frontend_pid.txt)
-             if kill "$PID" >/dev/null 2>&1; then
-               echo "Stopped frontend process $PID"
-             else
-               echo "Frontend process $PID was not running"
+            if kill "$PID" >/dev/null 2>&1; then
+              echo "Stopped frontend process $PID"
+            else
+              echo "Frontend process $PID was not running"
             fi
             rm frontend_pid.txt
-         else
-           echo "No frontend_pid.txt file found"
-         fi
-
+          else
+            echo "No frontend_pid.txt file found."
+          fi
 
        
         
