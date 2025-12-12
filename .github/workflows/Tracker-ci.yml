@@ -1,0 +1,169 @@
+name: Consultant--Tracker-ci
+on:
+  workflow_dispatch:
+  
+# Common environment variables for the app
+#env:
+  #MONGODB_URL: mongodb://localhost:27017
+  #CORS_ORIGINS: http://localhost:3000
+  #REACT_APP_API_URL: http://localhost:8000/api
+
+jobs:
+  backend:
+    name: backend-check
+    runs-on: self-hosted  #(self-hosted, linux)
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure MongoDB is running 
+        run: |
+          if pgrep mongod > /dev/null; then
+             echo "mongod is already running."
+           else
+             echo "Starting mongod service..."
+             sudo systemctl start mongod
+           fi
+           
+      - name: Ensure Python is installed
+        run: |
+          if command -v python3 > /dev/null 2>&1; then
+            echo "python3 is already installed: $(python3 --version)"
+          else
+            echo "python3 is NOT installed."
+            exit 1
+          fi
+
+      - name: Create venv and install dependencies
+        shell: bash
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip
+          # requirements.txt is in the ROOT folder, so go one level up
+          pip install -r ../requirements.txt  
+
+      - name: Backend sanity check
+        shell: bash
+        run: |
+          source venv/bin/activate
+          python -c "import app.main; print('Backend import OK')"
+
+
+  frontend:
+    name: Frontend 
+    runs-on: self-hosted
+    needs: backend
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure npm is installed
+        run: |
+          if command -v npm > /dev/null 2>&1; then
+            echo "npm is already installed: $(npm -v)"
+          else
+            echo "npm is NOT installed."
+            exit 1
+          fi
+
+      - name: Install frontend dependencies
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+
+      - name: Build frontend
+        run: npm run build
+        
+  validation:
+    name: Backend & Frontend Validation (curl)
+    runs-on: self-hosted
+    needs: [backend, frontend]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start backend temporarily
+        shell: bash
+        working-directory: backend
+        run: |
+          source venv/bin/activate
+          uvicorn app.main:app --host 127.0.0.1 --port 8001 &
+          echo $! > backend_pid.txt
+          echo "Started backend with PID $(cat backend_pid.txt)"
+          sleep 5
+
+      - name: Validate backend with curl
+        shell: bash
+        run: |
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}\n" http://127.0.0.1:8001/docs)
+          echo "Backend /docs returned HTTP $STATUS"
+          if [ "$STATUS" -eq 200 ]; then
+            echo "Backend validation passed"
+          else
+            echo "Backend validation failed"
+            exit 1
+          fi
+
+      - name: Start frontend temporarily
+        shell: bash
+        working-directory: frontend
+        run: |
+          npx serve -s build -l 5001 &
+          echo $! > frontend_pid.txt
+          echo "Started frontend with PID $(cat frontend_pid.txt)"
+          sleep 5
+
+      - name: Validate frontend with curl
+        shell: bash
+        run: |
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}\n" http://127.0.0.1:5001)
+          echo "Frontend / returned HTTP $STATUS"
+          if [ "$STATUS" -eq 200 ]; then
+            echo "Frontend validation passed"
+          else
+            echo "Frontend validation failed"
+            exit 1
+          fi
+
+      - name: Stop backend and frontend
+        shell: bash
+        run: |
+          if [ -f backend/backend_pid.txt ]; then
+            PID=$(cat backend/backend_pid.txt)
+            if kill "$PID" >/dev/null 2>&1; then
+              echo "Stopped backend process $PID"
+            else
+              echo "Backend process $PID was not running"
+            fi
+            rm backend/backend_pid.txt
+          else
+            echo "No backend_pid.txt file found, nothing to stop for backend."
+          fi
+
+          if [ -f frontend/frontend_pid.txt ]; then
+            PID=$(cat frontend/frontend_pid.txt)
+            if kill "$PID" >/dev/null 2>&1; then
+              echo "Stopped frontend process $PID"
+            else
+              echo "Frontend process $PID was not running"
+            fi
+            rm frontend/frontend_pid.txt
+          else
+            echo "No frontend_pid.txt file found, nothing to stop for frontend."
+          fi
