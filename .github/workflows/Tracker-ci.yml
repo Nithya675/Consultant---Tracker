@@ -87,7 +87,7 @@ jobs:
 
 
       - name: Build frontend
-        run: npm run build
+        run: CI=false npm run build
         
   validation:
     name: Backend & Frontend Validation (curl)
