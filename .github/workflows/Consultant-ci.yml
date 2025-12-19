@@ -71,10 +71,10 @@ jobs:
           fi
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
 
       - name: Start frontend application
         run: |
           export CI=false
           export NODE_OPTIONS=--no-deprecation
-          npm start
+          npm run build
