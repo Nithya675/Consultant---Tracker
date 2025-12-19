@@ -74,4 +74,7 @@ jobs:
         run: npm install
 
       - name: Start frontend application
-        run: npm start
+        run: |
+          export CI=false
+          export NODE_OPTIONS=--no-deprecation
+          npm start
