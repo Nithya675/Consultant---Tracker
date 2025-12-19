@@ -1,0 +1,77 @@
+name: Consultant-Tracker-Run
+
+on:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend Service
+    runs-on: self-hosted  # self-hosted, linux
+
+    defaults:
+      run:
+        working-directory: consultant---Tracker/backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure MongoDB is running
+        run: |
+          if pgrep mongod > /dev/null; then
+            echo "MongoDB is already running."
+          else
+            echo "Starting MongoDB service..."
+            sudo systemctl start mongod
+          fi
+
+      - name: Ensure Python is installed
+        run: |
+          if command -v python3 > /dev/null 2>&1; then
+            echo "Python is installed: $(python3 --version)"
+          else
+            echo "Python is not installed."
+            exit 1
+          fi
+
+      - name: Create virtual environment and install dependencies
+        shell: bash
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install -r ../requirements.txt
+
+      - name: Start backend application
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
+
+
+  frontend:
+    name: Frontend Service
+    runs-on: self-hosted
+    needs: backend
+
+    defaults:
+      run:
+        working-directory: consultant---Tracker/frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure npm is installed
+        run: |
+          if command -v npm > /dev/null 2>&1; then
+            echo "npm is installed: $(npm -v)"
+          else
+            echo "npm is not installed."
+            exit 1
+          fi
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Start frontend application
+        run: npm start
