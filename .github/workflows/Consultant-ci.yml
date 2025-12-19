@@ -10,7 +10,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: consultant---Tracker/backend
+        working-directory: backend
 
     steps:
       - name: Checkout repository
@@ -55,7 +55,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: consultant---Tracker/frontend
+        working-directory: frontend
 
     steps:
       - name: Checkout repository
